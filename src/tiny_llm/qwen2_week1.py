@@ -168,10 +168,8 @@ class Qwen2TransformerBlock:
         offset: int,
         mask: mx.array | str | None = None,
     ) -> mx.array:
-        x = self.input_layernorm(x)
-        x = x + self.mha(x, offset, mask=mask)
-        x = self.post_attention_layernorm(x)
-        x = x + self.mlp(x)
+        x = x + self.mha(self.input_layernorm(x), offset, mask=mask)
+        x = x + self.mlp(self.post_attention_layernorm(x))
         return x
 
 
