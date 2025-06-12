@@ -177,11 +177,49 @@ class Qwen2TransformerBlock:
 
 class Qwen2ModelWeek1:
     def __init__(self, mlx_model: Any):
-        pass
+        self.args = mlx_model.args
+        precision = mx.float16
+        self.precision = precision
+
+        self.embed_tokens = Embedding(self.args.vocab_size, self.args.hidden_size, dequantize_linear(mlx_model.model.embed_tokens))
+        self.layers = [
+            Qwen2TransformerBlock(
+                num_attention_heads=self.args.num_attention_heads,
+                num_kv_heads=self.args.num_key_value_heads,
+                hidden_size=self.args.hidden_size,
+                intermediate_size=self.args.intermediate_size,
+                rms_norm_eps=self.args.rms_norm_eps,
+                wq=dequantize_linear(layer.self_attn.q_proj),
+                wk=dequantize_linear(layer.self_attn.k_proj),
+                wv=dequantize_linear(layer.self_attn.v_proj),
+                wo=dequantize_linear(layer.self_attn.o_proj),
+                bq=layer.self_attn.q_proj.bias,
+                bk=layer.self_attn.k_proj.bias,
+                bv=layer.self_attn.v_proj.bias,
+                w_gate=dequantize_linear(layer.mlp.gate_proj),
+                w_up=dequantize_linear(layer.mlp.up_proj),
+                w_down=dequantize_linear(layer.mlp.down_proj),
+                w_input_layernorm=layer.input_layernorm.weight,
+                w_post_attention_layernorm=layer.post_attention_layernorm.weight,
+                max_seq_len=self.args.max_position_embeddings,
+                theta=self.args.rope_theta,
+            )
+            for layer in mlx_model.model.layers
+        ]
+        self.norm = RMSNorm(self.args.hidden_size, mlx_model.model.norm.weight, self.args.rms_norm_eps)
+        if not self.args.tie_word_embeddings:
+            self.w_lm_head = dequantize_linear(mlx_model.lm_head)
 
     def __call__(
         self,
         inputs: mx.array,
         offset: int,
     ) -> mx.array:
-        pass
+        h = self.embed_tokens(inputs)
+        for layer in self.layers:
+            h = layer(h, offset, mask="causal" if h.shape[1] > 1 else None)
+        h = self.norm(h)
+        if self.args.tie_word_embeddings:
+            return self.embed_tokens.as_linear(h)
+        else:
+            return linear(h, self.w_lm_head, bias=False)
