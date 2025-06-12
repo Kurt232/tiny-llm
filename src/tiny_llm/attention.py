@@ -98,7 +98,39 @@ def scaled_dot_product_attention_grouped(
     scale: float | None = None,
     mask: mx.array | str | None = None,
 ) -> mx.array:
-    pass
+    """
+    query: B x H_q x L x D
+    key: B x H x S x D
+    value: B x H x S x D
+    output: B x H_q x L x D
+    mask: B x H x L x S or "causal"
+
+    output: B x H_q x L x D
+    """
+    expected_shape = query.shape
+
+    H_q, L, D = query.shape[-3:]
+    H, S, _ = key.shape[-3:]
+
+    n_repeats = H_q // H
+
+    query = query.reshape(
+        -1, H, n_repeats, L, D
+    )  # leverage broadcasting instead of repeating the K and V tensors
+    key = key.reshape(-1, H, 1, S, D)  # ! -1, 1, H, S, D is wrong
+    value = value.reshape(-1, H, 1, S, D)
+
+    factor = mx.rsqrt(D) if scale is None else scale
+    scores = (
+        mx.matmul(query, key.swapaxes(-2, -1)) * factor
+    )  # Broadcasting should handle the head repetition implicitly.
+    if mask is not None:
+        mask = mask.reshape(-1, H, n_repeats, L, S)
+        scores += mask
+
+    o = mx.matmul(softmax(scores, axis=-1), value)
+
+    return o.reshape(expected_shape)
 
 
 def flash_attention(
