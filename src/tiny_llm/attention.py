@@ -88,7 +88,9 @@ class SimpleMultiHeadAttention:
 
 
 def causal_mask(L: int, S: int, dtype: mx.Dtype) -> mx.array:
-    pass
+    full = mx.ones((L, S), dtype=dtype) * - mx.inf
+    mask = mx.triu(full, k=(S - L + 1))
+    return mask
 
 
 def scaled_dot_product_attention_grouped(
@@ -125,7 +127,10 @@ def scaled_dot_product_attention_grouped(
         mx.matmul(query, key.swapaxes(-2, -1)) * factor
     )  # Broadcasting should handle the head repetition implicitly.
     if mask is not None:
-        mask = mask.reshape(-1, H, n_repeats, L, S)
+        if mask == "causal":
+            mask = causal_mask(L, S, scores.dtype).reshape(1, 1, 1, L, S)
+        else:
+            mask = mask.reshape(-1, H, n_repeats, L, S)
         scores += mask
 
     o = mx.matmul(softmax(scores, axis=-1), value)
