@@ -43,7 +43,9 @@ class Qwen2MultiHeadAttention:
         self.bk = bk
         self.bv = bv
 
-        self.rope = RoPE(dims=self.head_dim, seq_len=max_seq_len, base=theta, traditional=False)
+        self.rope = RoPE(
+            dims=self.head_dim, seq_len=max_seq_len, base=theta, traditional=False
+        )
 
     def __call__(
         self,
@@ -66,15 +68,9 @@ class Qwen2MultiHeadAttention:
         ```
         """
         B, L, _ = x.shape
-        q = linear(x, self.wq, self.bq).reshape(
-            B, L, self.num_heads, self.head_dim
-        )
-        k = linear(x, self.wk, self.bk).reshape(
-            B, L, self.num_kv_heads, self.head_dim
-        )
-        v = linear(x, self.wv, self.bv).reshape(
-            B, L, self.num_kv_heads, self.head_dim
-        )
+        q = linear(x, self.wq, self.bq).reshape(B, L, self.num_heads, self.head_dim)
+        k = linear(x, self.wk, self.bk).reshape(B, L, self.num_kv_heads, self.head_dim)
+        v = linear(x, self.wv, self.bv).reshape(B, L, self.num_kv_heads, self.head_dim)
         q = self.rope(q, offset=slice(offset, offset + L))
         k = self.rope(k, offset=slice(offset, offset + L))
         q = q.transpose(0, 2, 1, 3)
@@ -157,7 +153,9 @@ class Qwen2TransformerBlock:
             w_up=w_up,
             w_down=w_down,
         )
-        self.input_layernorm = RMSNorm(dim=hidden_size, weight=w_input_layernorm, eps=rms_norm_eps)
+        self.input_layernorm = RMSNorm(
+            dim=hidden_size, weight=w_input_layernorm, eps=rms_norm_eps
+        )
         self.post_attention_layernorm = RMSNorm(
             dim=hidden_size, weight=w_post_attention_layernorm, eps=rms_norm_eps
         )
@@ -179,7 +177,11 @@ class Qwen2ModelWeek1:
         precision = mx.float16
         self.precision = precision
 
-        self.embed_tokens = Embedding(self.args.vocab_size, self.args.hidden_size, dequantize_linear(mlx_model.model.embed_tokens))
+        self.embed_tokens = Embedding(
+            self.args.vocab_size,
+            self.args.hidden_size,
+            dequantize_linear(mlx_model.model.embed_tokens),
+        )
         self.layers = [
             Qwen2TransformerBlock(
                 num_attention_heads=self.args.num_attention_heads,
@@ -204,7 +206,9 @@ class Qwen2ModelWeek1:
             )
             for layer in mlx_model.model.layers
         ]
-        self.norm = RMSNorm(self.args.hidden_size, mlx_model.model.norm.weight, self.args.rms_norm_eps)
+        self.norm = RMSNorm(
+            self.args.hidden_size, mlx_model.model.norm.weight, self.args.rms_norm_eps
+        )
         if not self.args.tie_word_embeddings:
             self.w_lm_head = dequantize_linear(mlx_model.lm_head)
 

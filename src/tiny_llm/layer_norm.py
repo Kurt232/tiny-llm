@@ -11,5 +11,9 @@ class RMSNorm:
         assert x.shape[-1] == self.dim
         dtype = x.dtype
         x = x.astype(mx.float32)
-        x = x * mx.rsqrt(mx.mean(x * x, axis=-1, keepdims=True) + self.eps) * self.weight
+        x = (
+            x
+            * mx.rsqrt(mx.mean(x * x, axis=-1, keepdims=True) + self.eps)
+            * self.weight
+        )
         return x.astype(dtype)

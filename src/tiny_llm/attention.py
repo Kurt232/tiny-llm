@@ -88,7 +88,7 @@ class SimpleMultiHeadAttention:
 
 
 def causal_mask(L: int, S: int, dtype: mx.Dtype) -> mx.array:
-    full = mx.ones((L, S), dtype=dtype) * - mx.inf
+    full = mx.ones((L, S), dtype=dtype) * -mx.inf
     mask = mx.triu(full, k=(S - L + 1))
     return mask
 
